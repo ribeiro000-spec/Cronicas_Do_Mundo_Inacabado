@@ -1,0 +1,16 @@
+{
+  "name": "Crônicas do Mundo Inacabado",
+  "short_name": "Crônicas",
+  "description": "RPG de ação isométrico em pixel art no navegador.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
