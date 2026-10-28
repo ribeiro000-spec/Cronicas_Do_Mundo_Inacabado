@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b1220" />
+    <meta name="description" content="Crônicas do Mundo Inacabado — RPG de ação isométrico em pixel art, jogável no navegador e no celular." />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Crônicas" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" type="image/png" href="./icons/icon-192.png" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <title>Crônicas do Mundo Inacabado</title>
+    <style>
+      /* estilo mínimo da tela de carregamento, antes do CSS principal chegar */
+      html, body { margin: 0; height: 100%; background: #0b1220; color: #ece6d6; font-family: system-ui, sans-serif; }
+      .boot-loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+      .boot-title { font-family: Georgia, serif; font-size: 28px; color: #e8c66a; text-align: center; }
+      .boot-bar { width: 260px; height: 8px; border-radius: 8px; background: rgba(255,255,255,.08); overflow: hidden; }
+      .boot-bar-fill { height: 100%; width: 0; background: #e8c66a; }
+      .boot-text { color: #a9a28f; font-size: 14px; text-align: center; padding: 0 20px; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="ui"></div>
+    <div id="boot-loading" class="boot-loading">
+      <div class="boot-title">Crônicas do Mundo Inacabado</div>
+      <div class="boot-bar"><div class="boot-bar-fill" id="boot-bar-fill"></div></div>
+      <div class="boot-text" id="boot-text">Costurando o mundo…</div>
+    </div>
+    <noscript>Este jogo precisa de JavaScript ativado.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
