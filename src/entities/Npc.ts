@@ -4,7 +4,7 @@ import type { WorldPoi } from '../core/types';
 import { pick, rand } from '../core/util';
 import { NPCS } from '../data/npcs';
 import { CharacterView } from '../render/CharacterView';
-import { anchorOf } from '../render/registerArt';
+import { ART_SCALE, anchorOf } from '../render/registerArt';
 import type { CollisionGrid } from '../world/CollisionGrid';
 import { Actor, type Team } from './Actor';
 
@@ -29,7 +29,7 @@ export class Npc extends Actor {
     this.tx = poi.x;
     this.ty = poi.y;
     this.faceDir(1, 1);
-    this.marker = scene.add.image(0, 0, 'pois', 'mark_quest').setVisible(false);
+    this.marker = scene.add.image(0, 0, 'pois', 'mark_quest').setVisible(false).setScale(ART_SCALE);
     const an = anchorOf(scene, 'pois', 'mark_quest');
     this.marker.setOrigin(an.ox, an.oy);
     this.nameTag = scene.add
@@ -39,7 +39,7 @@ export class Npc extends Actor {
         color: '#f4e9c8',
         stroke: '#1b1a24',
         strokeThickness: 3,
-        resolution: 3,
+        resolution: 8,
       })
       .setOrigin(0.5, 1)
       .setAlpha(0);
@@ -94,9 +94,9 @@ export class Npc extends Actor {
   syncView(): void {
     super.syncView();
     const s = toScreen(this.x, this.y);
-    this.marker.setPosition(Math.round(s.x), Math.round(s.y - 34 + Math.sin(this.bobT * 4) * 1.5));
+    this.marker.setPosition(s.x, s.y - 36 + Math.sin(this.bobT * 4) * 1.5);
     this.marker.setDepth(depthOf(this.x, this.y) + 6000);
-    this.nameTag.setPosition(Math.round(s.x), Math.round(s.y - (this.markerKind ? 50 : 34)));
+    this.nameTag.setPosition(s.x, s.y - (this.markerKind ? 52 : 35));
     this.nameTag.setDepth(depthOf(this.x, this.y) + 6001);
   }
 

@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 import { depthOf, toScreen } from '../core/iso';
 import type { WorldPoi } from '../core/types';
 import { game } from '../game';
-import { anchorOf } from '../render/registerArt';
+import { ART_SCALE, anchorOf } from '../render/registerArt';
 
 /* Pontos de interesse fixos: baús, pedras-guia, ervas, altar, carga da caravana. */
 export class PoiSprite {
@@ -16,7 +16,7 @@ export class PoiSprite {
     readonly poi: WorldPoi,
   ) {
     const s = toScreen(poi.x, poi.y);
-    this.img = scene.add.image(s.x, s.y, 'pois', this.frame());
+    this.img = scene.add.image(s.x, s.y, 'pois', this.frame()).setScale(ART_SCALE);
     this.img.setDepth(depthOf(poi.x, poi.y));
     this.refresh();
   }
@@ -56,13 +56,13 @@ export class PoiSprite {
     if (wantsGlow && !this.glow) {
       const color = this.poi.type === 'waystone' ? 0x7cf0ff : this.poi.type === 'altar' ? 0xc58bff : this.poi.type === 'herb' ? 0x7fd8ff : 0xffd56a;
       this.glow = this.scene.add.image(s.x, s.y - 6, 'fx', 'light').setBlendMode(Phaser.BlendModes.ADD).setTint(color).setAlpha(0.35);
-      this.glow.setScale(this.poi.type === 'herb' ? 0.6 : 1).setDepth(depthOf(this.poi.x, this.poi.y) + 1);
+      this.glow.setScale(this.poi.type === 'herb' ? 0.4 : 0.7).setDepth(depthOf(this.poi.x, this.poi.y) + 1);
     } else if (!wantsGlow && this.glow) {
       this.glow.destroy();
       this.glow = null;
     }
     if (this.poi.type === 'altar' && f === 'altar' && !this.extra) {
-      this.extra = this.scene.add.image(s.x, s.y - 26, 'fx', 'shard').setDepth(depthOf(this.poi.x, this.poi.y) + 2);
+      this.extra = this.scene.add.image(s.x, s.y - 26, 'fx', 'shard').setScale(ART_SCALE).setDepth(depthOf(this.poi.x, this.poi.y) + 2);
     } else if (this.extra && f !== 'altar') {
       this.extra.destroy();
       this.extra = null;

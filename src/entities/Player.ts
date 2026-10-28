@@ -41,6 +41,20 @@ export class Player extends Actor {
   bubble: Phaser.GameObjects.Image | null = null;
   guaranteedCrit = 0;
   stepT = 0;
+  /** combo do ataque básico: 0 → 1 → 2 (o terceiro golpe é mais forte) */
+  comboStep = 0;
+  comboT = 0;
+  /** onda de choque ao terminar a investida (evolução da habilidade) */
+  dashShock: { power: number; radius: number } | null = null;
+  /** Égide: devolve dano / explode ao acabar */
+  barrierReflect = 0;
+  barrierBurst = 0;
+  /** Elixir da Fúria */
+  fury: { t: number; speed: number; dmg: number; leech: number; titan: boolean } | null = null;
+  furyAura: Phaser.GameObjects.Image | null = null;
+  /** redução de dano temporária (Bênção da Floresta) */
+  guardT = 0;
+  guardF = 1;
 
   constructor(scene: Phaser.Scene, x: number, y: number) {
     super(x, y);

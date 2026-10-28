@@ -436,7 +436,10 @@ for (let y = 0; y < H; y++) {
       place(r < 0.5 ? 'pine' : 'dark_tree', x, y, { allowRoad: true, ignoreClear: true });
       continue;
     }
-    if (road[i] === 1) continue;
+    if (road[i] === 1) {
+      if (g === T.path && r < 0.07) place('pebbles', x, y, { allowRoad: true });
+      continue;
+    }
     if (g === T.sand) {
       if (r < 0.015) place('rock', x, y);
       continue;
@@ -445,6 +448,7 @@ for (let y = 0; y < H; y++) {
       if (r < 0.02) place('rock', x, y, { avoidMargin: true });
       else if (r < 0.03) place('stump', x, y, { avoidMargin: true });
       else if (r < 0.07) place('tuft', x, y);
+      else if (r < 0.13) place('pebbles', x, y);
       continue;
     }
     if (f > 0.55) {
@@ -453,6 +457,7 @@ for (let y = 0; y < H; y++) {
       else if (r < 0.56) place('mushroom', x, y);
       else if (r < 0.6) place(rand() < 0.5 ? 'log' : 'stump', x, y, { avoidMargin: true });
       else if (r < 0.7) place('tuft', x, y);
+      else if (r < 0.8) place('leaves', x, y);
       continue;
     }
     const cluster = fbm(x, y, 7, SEED + 7);
@@ -462,6 +467,7 @@ for (let y = 0; y < H; y++) {
     else if (r < treeP + 0.03) place('rock', x, y, { avoidMargin: true });
     else if (r < treeP + 0.09) place('flowers', x, y);
     else if (r < treeP + 0.17) place('tuft', x, y);
+    else if (r < treeP + 0.19) place('pebbles', x, y);
   }
 }
 // juncos e vitórias-régias junto à água
@@ -584,13 +590,15 @@ function freeTileNear(x, y, r) {
   return null;
 }
 // grupos fixos para a missão da caravana e o acampamento
-addSpawn('bandido', 147.5, 100.5, 3, 3);
-addSpawn('bandido', 155.5, 115.5, 2, 4);
-addSpawn('bandido_arqueiro', 160.5, 120.5, 2, 4);
-addSpawn('esqueleto', 158.5, 62.5, 3, 5);
-addSpawn('esqueleto', 172.5, 52.5, 3, 6);
+addSpawn('bandido', 147.5, 100.5, 3, 4);
+addSpawn('bandido_arqueiro', 149.5, 98.5, 1, 4);
+addSpawn('bandido', 155.5, 115.5, 3, 5);
+addSpawn('bandido_arqueiro', 160.5, 120.5, 2, 5);
+addSpawn('esqueleto', 158.5, 62.5, 3, 6);
+addSpawn('esqueleto', 172.5, 52.5, 4, 7);
 
 const TABLES = {
+  // [inimigo, mínimo, máximo] por grupo
   campos: [['slime', 2, 4], ['slime', 3, 4], ['javali', 1, 2], ['goblin', 2, 3]],
   floresta: [['lobo', 2, 4], ['lobo', 3, 4], ['aranha', 1, 3], ['lobo', 2, 3]],
   ruinas: [['esqueleto', 2, 3], ['goblin_arqueiro', 1, 2], ['goblin', 2, 3], ['esqueleto', 2, 4]],
@@ -614,13 +622,13 @@ for (let cy = 0; cy < HC; cy++) {
     if (frac(T.forest_floor) > 0.4) biome = 'floresta';
     else if (frac(T.rocky, T.ruin_floor) > 0.35) biome = 'ruinas';
     else if (frac(T.water, T.deep_water, T.sand) > 0.25) biome = 'lago';
-    const lvBase = 1 + Math.floor(dist(mx, my, P.village.x, P.village.y) / 24);
+    const lvBase = 2 + Math.floor(dist(mx, my, P.village.x, P.village.y) / 20);
     const groups = rand() < 0.55 ? 1 : 2;
     for (let g = 0; g < groups; g++) {
       const [e, a, b] = pick(TABLES[biome]);
       const pos = freeTileNear(mx, my, CS / 2 - 1);
       if (!pos) continue;
-      addSpawn(e, pos[0], pos[1], randInt(a, b), Math.min(8, lvBase + (e === 'aranha' || e === 'esqueleto' ? 1 : 0)));
+      addSpawn(e, pos[0], pos[1], randInt(a, b) + (lvBase >= 5 ? 1 : 0), Math.min(10, lvBase + (e === 'aranha' || e === 'esqueleto' ? 1 : 0)));
     }
   }
 }
@@ -645,6 +653,66 @@ const mapFragments = [
 ];
 
 // ---------------------------------------------------------------- saída
+// ---------------------------------------------------------------- bordas de transição
+// Para cada tile, os vizinhos de terreno “mais alto” (prioridade maior) desenham uma faixa
+// de transição por cima dele. Lados: 0..3; cantos: 4..7 (só quando os lados não cobrem).
+const PRIO = defs.priority;
+const KEY_BY_ID = defs.tiles.map((t) => t.key);
+const DIRS = [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]];
+const CORNER_SIDES = { 4: [0, 2], 5: [1, 2], 6: [0, 3], 7: [1, 3] };
+const WATER_IDS = new Set([T.water, T.deep_water]);
+const edges = new Map(); // chunkKey -> [idx, dir, upper, ...]
+const edgeKinds = new Set();
+for (let y = 0; y < H; y++) {
+  for (let x = 0; x < W; x++) {
+    const g = ground[idx(x, y)];
+    const pg = PRIO[KEY_BY_ID[g]];
+    if (pg < 0) continue;
+    const found = [];
+    for (let d = 0; d < 8; d++) {
+      const nx = x + DIRS[d][0];
+      const ny = y + DIRS[d][1];
+      if (!inB(nx, ny)) continue;
+      const ng = ground[idx(nx, ny)];
+      const pn = PRIO[KEY_BY_ID[ng]];
+      if (pn <= pg) continue;
+      if (d >= 4 && CORNER_SIDES[d].some((sd) => found.some((f) => f[0] === sd && f[1] === ng))) continue;
+      found.push([d, ng]);
+    }
+    if (!found.length) continue;
+    // dois lados vizinhos com o mesmo terreno viram uma borda reta (pares 8..11)
+    const PAIRS = [[0, 2, 8], [1, 3, 9], [0, 3, 10], [1, 2, 11]];
+    const used = new Set();
+    const pairs = [];
+    for (const [sa, sb, pd] of PAIRS) {
+      const fa = found.find((f) => f[0] === sa);
+      const fb = found.find((f) => f[0] === sb);
+      if (fa && fb && fa[1] === fb[1]) {
+        pairs.push([pd, fa[1]]);
+        used.add(fa);
+        used.add(fb);
+      }
+    }
+    for (let i = found.length - 1; i >= 0; i--) {
+      const f = found[i];
+      if (used.has(f)) found.splice(i, 1);
+      // cantos já cobertos por um par do mesmo terreno
+      else if (f[0] >= 4 && pairs.some((pp) => pp[1] === f[1])) found.splice(i, 1);
+    }
+    found.push(...pairs);
+    // terreno mais baixo primeiro, para os mais altos ficarem por cima
+    found.sort((a, b) => PRIO[KEY_BY_ID[a[1]]] - PRIO[KEY_BY_ID[b[1]]]);
+    const key = `${Math.floor(x / CS)}_${Math.floor(y / CS)}`;
+    if (!edges.has(key)) edges.set(key, []);
+    const list = edges.get(key);
+    const local = (y % CS) * CS + (x % CS);
+    for (const [d, ng] of found) {
+      list.push(local, d, ng);
+      edgeKinds.add(`${KEY_BY_ID[ng]}:${d}:${WATER_IDS.has(g) ? 1 : 0}`);
+    }
+  }
+}
+
 const overviewPalette = [...defs.tiles.map((t) => t.map)];
 const PAL_TREE = overviewPalette.push('#2a5a2c') - 1;
 const PAL_BUILD = overviewPalette.push('#b65a3f') - 1;
@@ -682,7 +750,7 @@ for (let cy = 0; cy < HC; cy++) {
       .filter((ob) => !ob.removed && Math.floor(ob.x / CS) === cx && Math.floor(ob.y / CS) === cy)
       .map((ob) => [ob.id, ob.x - cx * CS, ob.y - cy * CS]);
     objCount += o.length;
-    const data = { cx, cy, g: Buffer.from(g).toString('base64'), o, s: spawns.get(`${cx}_${cy}`) || [] };
+    const data = { cx, cy, g: Buffer.from(g).toString('base64'), o, s: spawns.get(`${cx}_${cy}`) || [], e: edges.get(`${cx}_${cy}`) || [] };
     const json = JSON.stringify(data);
     mix(json);
     totalBytes += json.length;
@@ -712,6 +780,8 @@ const manifest = {
   // "art": { "tiles": "assets/atlases/tiles", "objects": "assets/atlases/objects" }
   // (cada caminho aponta para <nome>.png + <nome>.json no formato JSON Hash do TexturePacker)
   art: {},
+  // bordas de transição usadas no mapa ("terreno:direção:sobreÁgua") — o jogo só desenha estas
+  edgeKinds: [...edgeKinds].sort(),
 };
 fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest));
 

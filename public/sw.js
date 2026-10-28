@@ -8,7 +8,7 @@
  *
  * Para forçar todos os jogadores a baixarem tudo de novo, aumente CACHE_VERSION.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const RUNTIME = `cronicas-${CACHE_VERSION}`;
 
 self.addEventListener('install', (event) => {

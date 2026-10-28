@@ -1,7 +1,7 @@
 import { bus } from '../core/events';
 import { input, type ActionName } from '../core/input';
 import { ITEMS } from '../data/items';
-import { SKILLS } from '../data/skills';
+import { SKILLS, skillTier } from '../data/skills';
 import { game } from '../game';
 import { itemIcon, skillIcon } from '../render/icons';
 import { sfx } from '../systems/sfx';
@@ -300,7 +300,8 @@ export class Controls {
         const b = this.skills[i];
         b.querySelector('img')?.remove();
         b.classList.toggle('empty', !id);
-        if (id && SKILLS[id]) b.prepend(img(skillIcon(SKILLS[id])));
+        if (id && SKILLS[id]) b.prepend(img(skillIcon(SKILLS[id], skillTier(SKILLS[id], p.skills[id] ?? 0))));
+        b.classList.toggle('evolved', !!id && !!SKILLS[id] && skillTier(SKILLS[id], p.skills[id] ?? 0) > 0);
       });
     }
     p.hotbar.forEach((id, i) => {

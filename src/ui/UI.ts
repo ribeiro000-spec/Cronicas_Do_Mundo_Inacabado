@@ -4,10 +4,15 @@ import { input } from '../core/input';
 import { game } from '../game';
 import { sfx } from '../systems/sfx';
 import type { WorldData } from '../world/WorldData';
+import { playerLook } from '../entities/Player';
+import { Atmosphere } from './Atmosphere';
+import { Cinematic } from './Cinematic';
 import { Controls } from './Controls';
 import { Dialogue } from './Dialogue';
 import { h, isTouchDevice } from './dom';
+import { Highlight } from './Highlight';
 import { Hud } from './Hud';
+import { showIntroStory } from './IntroStory';
 import { Menu } from './Menu';
 import { alertBox, pushPause, resetPause } from './modal';
 import { confirmNewGameOverwrite, showCreate, showDeath, showEnding, showTitle } from './screens';
@@ -21,6 +26,9 @@ export class UI {
   private hud: Hud | null = null;
   private controls: Controls | null = null;
   private dialogue = new Dialogue();
+  private cinematic = new Cinematic();
+  private highlight: Highlight;
+  private atmosphere = new Atmosphere();
   private menu: Menu;
   private veil = h('div', { class: 'travel-veil hide' }, 'Costurando o caminho…');
   private screen: HTMLElement | null = null;
@@ -35,6 +43,10 @@ export class UI {
     if (!isTouchDevice()) this.root.classList.add('no-touch');
     if (game.settings.leftHanded) this.root.classList.add('lefty');
     this.menu = new Menu(world, () => this.toTitle());
+    // cartões de destaque só aparecem com o jogo rodando, fora de diálogos e cenas
+    this.highlight = new Highlight(
+      () => this.inGame && !game.dead && !this.dialogue.isOpen && !this.root.classList.contains('cinematic') && !this.screen && this.veil.classList.contains('hide'),
+    );
     document.body.appendChild(this.veil);
 
     bus.on('dialogue:open', ({ npcId }) => this.dialogue.open(npcId));
@@ -118,11 +130,16 @@ export class UI {
     this.screen = showCreate(
       (name, arch, look) => {
         game.newGame(name, arch, look);
-        this.enterWorld();
-        setTimeout(() => {
-          game.toast('Bem-vindo a Eldenor. Fale com o Prefeito Aldren (!).', 'quest');
-          void game.save('auto');
-        }, 1200);
+        this.clearScreen();
+        // introdução: o mundo, as Costuras e a origem do personagem
+        this.screen = showIntroStory(name, arch, playerLook(), () => {
+          this.screen = null;
+          this.enterWorld();
+          setTimeout(() => {
+            game.toast('Bem-vindo a Eldenor. Fale com o Prefeito Aldren (!).', 'quest');
+            void game.save('auto');
+          }, 1200);
+        });
       },
       () => this.showTitle(),
     );
@@ -151,6 +168,7 @@ export class UI {
 
   private setInGame(v: boolean): void {
     this.inGame = v;
+    this.atmosphere.show(v);
     if (v) {
       if (!this.hud) {
         this.hud = new Hud(this.world, (tab) => this.openMenu(tab));
@@ -189,6 +207,8 @@ export class UI {
   toTitle(): void {
     this.dialogue.close();
     this.menu.close();
+    this.highlight.clear();
+    this.cinematic.close(true);
     if (this.phaser.scene.isActive('world')) this.phaser.scene.stop('world');
     game.running = false;
     bus.emit('boss:update', null);

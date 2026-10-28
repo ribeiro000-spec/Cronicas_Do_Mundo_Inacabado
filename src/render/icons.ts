@@ -283,17 +283,64 @@ function drawSkillGlyph(pb: PB, kind: string): void {
       pb.line(10, 6, 13, 3, s);
       pb.set(13, 2, C('#ffd56a'));
       break;
+    case 'quake':
+      pb.line(2, 12, 6, 9, w);
+      pb.line(6, 9, 8, 11, w);
+      pb.line(8, 11, 13, 5, w);
+      pb.rect(2, 13, 12, 1, s);
+      break;
+    case 'chain':
+      pb.line(9, 1, 5, 8, w);
+      pb.line(5, 8, 10, 8, w);
+      pb.line(10, 8, 6, 15, w);
+      break;
+    case 'rain':
+      for (const x of [3, 7, 11]) {
+        pb.line(x, 2, x + 2, 9, w);
+        pb.set(x + 2, 10, s);
+      }
+      pb.rect(2, 13, 12, 1, s);
+      break;
+    case 'frost':
+      pb.line(8, 1, 8, 15, w);
+      pb.line(1, 8, 15, 8, w);
+      pb.line(3, 3, 13, 13, s);
+      pb.line(13, 3, 3, 13, s);
+      break;
+    case 'turret':
+      pb.poly([[8, 1], [12, 6], [8, 11], [4, 6]], w);
+      pb.rect(4, 12, 8, 3, s);
+      break;
+    case 'fan':
+      for (const a of [-0.6, 0, 0.6]) pb.line(8, 13, Math.round(8 + Math.sin(a) * 7), Math.round(13 - Math.cos(a) * 10), w);
+      break;
+    case 'hammer':
+      pb.rect(3, 2, 10, 5, w);
+      pb.rect(7, 7, 2, 8, s);
+      break;
+    case 'buff':
+      pb.rect(6, 2, 4, 3, s);
+      pb.ellipse(8, 10, 4.5, 4.5, w);
+      pb.rect(7, 8, 2, 4, C('#d8333b'));
+      break;
   }
 }
 
-export function skillIcon(def: SkillDef): string {
-  const key = `skill:${def.id}`;
+/** Ícone da habilidade; tier 1–2 (evoluções) muda a borda e acende pontos de brilho. */
+export function skillIcon(def: SkillDef, tier = 0): string {
+  const key = `skill:${def.id}:${tier}`;
   const hit = cache.get(key);
   if (hit) return hit;
   const col = SCHOOLS[def.school].color;
-  const pb = new PB(16, 16);
-  pb.ellipse(8, 8, 7.8, 7.8, (x, y) => C(x + y < 14 ? shade(col, 0.15) : shade(col, -0.25)));
-  drawSkillGlyph(pb, def.kind);
+  const pb = new PB(18, 18);
+  const ring = ['#c8a96a', '#d8e4f4', '#ffd24a'][tier];
+  pb.ellipse(9, 9, 8.8, 8.8, C(tier === 2 ? '#ffe9a0' : ring));
+  const inner = tier === 2 ? shade(col, 0.2) : col;
+  pb.ellipse(9, 9, 7.6, 7.6, (x, y) => C(x + y < 16 ? shade(inner, 0.18) : shade(inner, -0.28)));
+  const glyph = new PB(16, 16);
+  drawSkillGlyph(glyph, def.kind);
+  pb.blit(glyph, 1, 1);
+  if (tier >= 1) for (const [x, y] of tier === 2 ? [[2, 3], [15, 3], [2, 15], [15, 15]] : [[15, 3], [2, 15]]) pb.rect(x, y, 2, 2, C('#ffffff'));
   pb.outline(OUT);
   const u = url(pb);
   cache.set(key, u);

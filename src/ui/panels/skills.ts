@@ -1,6 +1,6 @@
 import { BALANCE } from '../../config';
 import { ATTR_KEYS, type SkillSchool } from '../../core/types';
-import { SCHOOLS, SKILL_LIST } from '../../data/skills';
+import { SCHOOLS, SKILL_LIST, TIER_COLORS, skillName, skillTier } from '../../data/skills';
 import { game } from '../../game';
 import { skillIcon } from '../../render/icons';
 import { canLearn, mastery, nextReq, skillCooldown, skillPower } from '../../systems/progression';
@@ -23,10 +23,10 @@ export function renderSkills(el: HTMLElement, ctx: PanelCtx): void {
           selectedSlot = i;
           ctx.rerender();
         },
-        title: def?.name ?? 'Vazio',
+        title: def ? skillName(def, p.skills[def.id] ?? 0) : 'Vazio',
       },
       h('span', { class: 'n' }, String(i + 1)),
-      def ? img(skillIcon(def)) : h('span', { class: 'muted' }, '+'),
+      def ? img(skillIcon(def, skillTier(def, p.skills[def.id] ?? 0))) : h('span', { class: 'muted' }, '+'),
     );
   });
 
@@ -66,23 +66,38 @@ export function renderSkills(el: HTMLElement, ctx: PanelCtx): void {
       const reqEls = ATTR_KEYS.filter((k) => req[k]).map((k) => h('span', { class: p.attrs[k] >= req[k]! ? 'good' : 'bad' }, `${k} ${req[k]}`));
       if (s.reqLevel) reqEls.push(h('span', { class: p.level >= s.reqLevel ? 'good' : 'bad' }, `Nível ${s.reqLevel}`));
       const power = Math.round(skillPower(s, Math.max(1, m), d));
-      const powerLabel = s.kind === 'heal' ? `Cura ~${Math.round(15 + power * 1.6)}` : s.kind === 'barrier' ? `Escudo ${Math.round(20 + power * 2.2)}` : s.kind === 'summon' || s.kind === 'blink' ? '' : `Poder ${power}`;
+      const powerLabel = s.kind === 'heal' ? `Cura ~${Math.round(15 + power * 1.6)}` : s.kind === 'barrier' ? `Escudo ${Math.round(20 + power * 2.2)}` : s.kind === 'summon' || s.kind === 'blink' || s.kind === 'buff' ? '' : `Poder ${power}`;
       const inHotbar = hb.indexOf(s.id);
+      const tier = skillTier(s, m);
+      // linha de evolução: estágio base → evolução 1 (maestria 3) → evolução 2 (maestria 5)
+      const evo = h(
+        'div',
+        { class: 'evo' },
+        [{ at: 1, name: s.name, desc: s.desc }, ...(s.tiers ?? [])].map((t, i) =>
+          h(
+            'div',
+            { class: `evo-step${m >= t.at ? ' on' : ''}${i === tier && m > 0 ? ' cur' : ''}`, style: `--tc:${TIER_COLORS[i]}`, title: t.desc },
+            img(skillIcon(s, i)),
+            h('div', null, h('b', null, t.name), h('small', null, i === 0 ? 'Base' : `Maestria ${t.at}`), i > 0 ? h('span', { class: 'evo-desc' }, t.desc) : null),
+          ),
+        ),
+      );
       box.appendChild(
         h(
           'div',
-          { class: 'skill-card' },
-          img(skillIcon(s)),
+          { class: `skill-card${tier > 0 ? ' evolved t' + tier : ''}` },
+          img(skillIcon(s, tier)),
           h(
             'div',
             null,
             h(
               'div',
               { class: 'row', style: 'justify-content:space-between' },
-              h('span', { class: 's-name' }, s.name),
+              h('span', { class: 's-name', style: tier > 0 ? `color:${TIER_COLORS[tier]}` : '' }, skillName(s, m)),
               h('span', { class: 'mastery', title: `Maestria ${m}/${BALANCE.maxMastery}` }, Array.from({ length: BALANCE.maxMastery }, (_, i) => h('i', { class: i < m ? 'on' : '' }))),
             ),
             h('div', { class: 's-desc' }, s.desc),
+            s.tiers ? evo : null,
             h('div', { class: 'reqs muted' }, `Mana ${s.mp}`, `· Recarga ${skillCooldown(s, Math.max(1, m)).toFixed(1)} s`, powerLabel ? `· ${powerLabel}` : null),
             reqEls.length ? h('div', { class: 'reqs', style: 'margin-top:3px' }, h('span', { class: 'muted' }, m > 0 ? 'Próximo nível requer:' : 'Requer:'), reqEls) : null,
             h(

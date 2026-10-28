@@ -2,8 +2,10 @@ import { safeLocalGet, safeLocalSet } from '../core/util';
 
 export interface Settings {
   volume: number;
-  /** 0 = automático; 2..5 = zoom fixo */
+  /** 0 = automático; -1 = mais longe; 1 = mais perto (valores antigos 2..5 contam como automático) */
   zoom: number;
+  /** desenha na resolução real da tela (mais nítido; desligue em aparelhos fracos) */
+  hiRes: boolean;
   controlsScale: number;
   leftHanded: boolean;
   vibration: boolean;
@@ -20,6 +22,7 @@ const KEY = 'cronicas-settings-v1';
 export const DEFAULT_SETTINGS: Settings = {
   volume: 0.6,
   zoom: 0,
+  hiRes: true,
   controlsScale: 1,
   leftHanded: false,
   vibration: true,

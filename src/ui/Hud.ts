@@ -110,8 +110,10 @@ export class Hud {
       this.mpFill.style.transform = `scaleX(${mpF})`;
       this.mpTxt.textContent = `${Math.floor(p.mp)} / ${d.maxMp}`;
     });
-    const scene = game.scene as unknown as { player?: { barrier: number } } | null;
+    const scene = game.scene as unknown as { player?: { barrier: number; fury: { titan: boolean } | null; guardT: number } } | null;
     const barrier = scene?.player?.barrier ?? 0;
+    const fury = scene?.player?.fury ?? null;
+    const guard = (scene?.player?.guardT ?? 0) > 0;
     this.set('shield', Math.round(barrier), () => {
       this.hpShield.style.transform = `scaleX(${Math.min(1, barrier / d.maxHp)})`;
     });
@@ -133,6 +135,8 @@ export class Hud {
     const buffs: string[] = [];
     if (game.regen) buffs.push('🌿 Regeneração');
     if (barrier > 0) buffs.push('🛡️ Barreira');
+    if (fury) buffs.push(fury.titan ? '💪 Titã' : '🔥 Fúria');
+    if (guard) buffs.push('🍃 Bênção');
     if (game.inCombat) buffs.push('⚔️ Em combate');
     this.set('buffs', buffs.join('|'), () => {
       clear(this.buffs);

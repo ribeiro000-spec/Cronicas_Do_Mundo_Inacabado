@@ -4,10 +4,11 @@ import type { Attrs, DerivedStats, EquipSlot, GameState, PlayerLook, WorldManife
 import { clamp, dist, uid } from './core/util';
 import { CODEX } from './data/codex';
 import { FACTIONS } from './data/factions';
-import { ITEMS } from './data/items';
+import { ITEMS, RARITY_COLOR } from './data/items';
 import { CHESTS, SHOPS } from './data/loot';
 import { NPCS, type DialogueEntry } from './data/npcs';
 import { QUESTS, type Action, type QuestDef } from './data/quests';
+import { SKILLS, skillTier } from './data/skills';
 import { Fog } from './systems/fog';
 import * as inv from './systems/inventory';
 import { createNewState } from './systems/newgame';
@@ -58,6 +59,8 @@ export class Game {
   regen: { perSec: number; left: number } | null = null;
   /** recarga das habilidades (não vai para o save) */
   cooldowns: Record<string, { left: number; total: number }> = {};
+  /** durante a entrega de recompensas os itens não ganham cartão próprio (o da missão já lista tudo) */
+  private rewardMode = false;
 
   constructor() {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
@@ -100,6 +103,11 @@ export class Game {
   }
 
   applyState(st: GameState): void {
+    // saves antigos: o chefe podia ser derrotado antes da missão, travando o Ato I.
+    // Se a missão não registrou a vitória, o cavaleiro volta a guardar as ruínas.
+    const qc = st.quests.q_cavaleiro;
+    const wonInQuest = !!qc && (qc.status === 'done' || (qc.status === 'active' && qc.step >= 2));
+    if (!wonInQuest && st.world.bosses.includes('boss_cavaleiro')) st.world.bosses = st.world.bosses.filter((b) => b !== 'boss_cavaleiro');
     this.state = st;
     this.dead = false;
     this.inCombat = false;
@@ -166,6 +174,17 @@ export class Game {
     if (added > 0 && !silent) {
       this.toast(`+${added > 1 ? added + '× ' : ''}${def.name}`, 'item');
       sfx.play('pickup');
+      const rare = def.rarity === 'raro' || def.rarity === 'epico' || def.rarity === 'lendario';
+      if (!this.rewardMode && (def.category === 'quest' || rare)) {
+        bus.emit('highlight', {
+          kind: 'item',
+          title: def.category === 'quest' ? 'Item importante' : `Item ${def.rarity === 'lendario' ? 'lendário' : def.rarity === 'epico' ? 'épico' : 'raro'}`,
+          name: def.name,
+          text: def.desc,
+          itemId: id,
+          color: def.rarity ? RARITY_COLOR[def.rarity] : '#e8c66a',
+        });
+      }
     }
     bus.emit('inventory:changed');
     this.quests.checkCollect();
@@ -369,6 +388,13 @@ export class Game {
     }
     prog.learnOrUpgrade(this.state, id);
     sfx.play('magic');
+    const def = SKILLS[id];
+    const m = this.state.player.skills[id] ?? 0;
+    const tier = skillTier(def, m);
+    const t = def.tiers?.[tier - 1];
+    if (t && t.at === m) {
+      bus.emit('highlight', { kind: 'skill', title: `${def.name} evoluiu!`, name: t.name, text: t.desc, skillId: id, tier, color: tier === 2 ? '#ffd24a' : '#bcd4ff' });
+    }
     bus.emit('skills:changed');
     bus.emit('state:changed');
   }
@@ -404,6 +430,7 @@ export class Game {
     this.fog.revealRect(x0, y0, x1, y1);
     this.persistFog();
     this.toast(`Fragmento de mapa: ${frag.name}`, 'item');
+    if (!this.rewardMode) bus.emit('highlight', { kind: 'fragment', title: 'Fragmento de mapa', name: frag.name, text: 'Uma parte do mapa foi revelada. Abra o mapa para ver os caminhos novos.', color: '#7cf0ff' });
     this.gainXp(40);
     bus.emit('map:changed');
   }
@@ -468,11 +495,24 @@ export class Game {
   grantQuestRewards(def: QuestDef): void {
     const r = def.rewards;
     sfx.play('quest');
-    if (r.gold) this.addGold(r.gold, true);
-    for (const it of r.items ?? []) this.giveItem(it.id, it.qty);
-    for (const [f, n] of Object.entries(r.rep ?? {})) this.changeRep(f, n);
-    for (const fr of r.fragments ?? []) this.revealFragment(fr);
-    for (const c of r.codex ?? []) this.unlockCodex(c);
+    bus.emit('highlight', {
+      kind: 'quest',
+      title: def.type === 'main' ? 'Missão principal concluída' : 'Missão concluída',
+      name: def.name,
+      text: `Recompensas: ${this.quests.rewardText(def)}`,
+      itemId: r.items?.[0]?.id,
+      color: def.type === 'main' ? '#e8c66a' : '#9fd27a',
+    });
+    this.rewardMode = true;
+    try {
+      if (r.gold) this.addGold(r.gold, true);
+      for (const it of r.items ?? []) this.giveItem(it.id, it.qty);
+      for (const [f, n] of Object.entries(r.rep ?? {})) this.changeRep(f, n);
+      for (const fr of r.fragments ?? []) this.revealFragment(fr);
+      for (const c of r.codex ?? []) this.unlockCodex(c);
+    } finally {
+      this.rewardMode = false;
+    }
     this.gainXp(r.xp);
     void this.autosave('missão');
   }

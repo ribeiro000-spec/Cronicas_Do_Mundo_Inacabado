@@ -1,6 +1,6 @@
 import type { HumanoidLook } from '../core/types';
 
-export type EnemyKind = 'slime' | 'wolf' | 'boar' | 'spider' | 'humanoid';
+export type EnemyKind = 'slime' | 'wolf' | 'boar' | 'spider' | 'totem' | 'humanoid';
 
 export interface EnemyAttack {
   type: 'melee' | 'ranged' | 'charge';
@@ -36,7 +36,15 @@ export interface EnemyDef {
   /** foge quando a vida cai abaixo desta fração */
   flee?: number;
   boss?: boolean;
+  /** criatura espiritual (translúcida, invocada) */
+  spirit?: boolean;
+  /** não se move (sentinela) */
+  stationary?: boolean;
 }
+
+/* Dificuldade: valores ~45% mais altos de vida e ~30% de dano em relação à primeira versão.
+ * Ajuste fino em DIFFICULTY abaixo (multiplicadores aplicados a todos, exceto invocações). */
+export const DIFFICULTY = { hp: 1.45, dmg: 1.3, cooldown: 0.88, windup: 0.92, aggro: 1, speed: 1.05 };
 
 const list: EnemyDef[] = [
   {
@@ -63,7 +71,7 @@ const list: EnemyDef[] = [
     id: 'goblin', name: 'Goblin', kind: 'humanoid', hp: 32, hpLv: 9, dmg: 7, dmgLv: 2.2, armor: 1, speed: 2.7, aggro: 5.5, leash: 12,
     radius: 0.3, scale: 0.85, attack: { type: 'melee', range: 1.0, windup: 0.36, cooldown: 1.1 },
     look: {
-      skin: '#7fae4a', hair: '#2a2a1a', hairStyle: 'careca', body: 'small', eyes: '#ffd23a',
+      skin: '#7fae4a', hair: '#2a2a1a', hairStyle: 'careca', body: 'small', ears: 'pointy', eyes: '#ffd23a',
       chest: { style: 'vest', color: '#6b4a2b' }, legs: { style: 'pants', color: '#4a3a26', color2: '#2e2116' },
       main: { style: 'dagger', color: '#9aa0a8', color2: '#4a3020' },
     },
@@ -74,7 +82,7 @@ const list: EnemyDef[] = [
     aggro: 7, leash: 12, radius: 0.3, scale: 0.85,
     attack: { type: 'ranged', range: 6.5, windup: 0.6, cooldown: 1.9, projectile: 'arrow', keepAway: 4 },
     look: {
-      skin: '#7fae4a', hair: '#2a2a1a', hairStyle: 'careca', body: 'small', eyes: '#ffd23a',
+      skin: '#7fae4a', hair: '#2a2a1a', hairStyle: 'careca', body: 'small', ears: 'pointy', eyes: '#ffd23a',
       head: { style: 'hood', color: '#4a5a2a' }, chest: { style: 'vest', color: '#5a4a2b' },
       legs: { style: 'pants', color: '#4a3a26', color2: '#2e2116' }, main: { style: 'bow', color: '#6b4a2b', color2: '#d9c79a' },
     },
@@ -111,8 +119,8 @@ const list: EnemyDef[] = [
     xp: 30, gold: [2, 9], loot: [{ id: 'osso', chance: 0.6 }, { id: 'cristal_eco', chance: 0.4 }, { id: 'moeda_antiga', chance: 0.08 }],
   },
   {
-    id: 'cavaleiro_sem_brasao', name: 'Cavaleiro Sem Brasão', kind: 'humanoid', boss: true, hp: 950, hpLv: 0, dmg: 20, dmgLv: 0,
-    armor: 8, speed: 2.3, aggro: 9, leash: 20, radius: 0.55, scale: 1.7,
+    id: 'cavaleiro_sem_brasao', name: 'Cavaleiro Sem Brasão', kind: 'humanoid', boss: true, hp: 1100, hpLv: 0, dmg: 21, dmgLv: 0,
+    armor: 9, speed: 2.3, aggro: 9, leash: 20, radius: 0.55, scale: 1.7,
     attack: { type: 'melee', range: 1.7, windup: 0.6, cooldown: 1.5 },
     look: {
       skin: '#3a3a4a', hair: '#000000', hairStyle: 'careca', eyes: '#ff4a4a',
@@ -122,11 +130,40 @@ const list: EnemyDef[] = [
     },
     xp: 600, gold: [120, 160], loot: [{ id: 'pocao_grande', chance: 1, min: 2, max: 2 }, { id: 'moeda_antiga', chance: 1, min: 3, max: 5 }],
   },
+  // ------------------------------------------------------------ invocações (aliados)
   {
-    id: 'lobo_espiritual', name: 'Lobo Espiritual', kind: 'wolf', color: '#7cf0ff', hp: 70, hpLv: 14, dmg: 9, dmgLv: 3, armor: 2, speed: 4,
+    id: 'lobo_espiritual', name: 'Lobo Espiritual', kind: 'wolf', color: '#7cf0ff', spirit: true, hp: 70, hpLv: 14, dmg: 9, dmgLv: 3, armor: 2, speed: 4,
     aggro: 8, leash: 30, radius: 0.35, attack: { type: 'melee', range: 1.05, windup: 0.22, cooldown: 0.9 },
     xp: 0, gold: [0, 0], loot: [],
   },
+  {
+    id: 'lobo_matilha', name: 'Lobo da Matilha Espiritual', kind: 'wolf', color: '#a890ff', spirit: true, hp: 90, hpLv: 16, dmg: 11, dmgLv: 3.4, armor: 3,
+    speed: 4.3, aggro: 9, leash: 30, radius: 0.36, scale: 1.1, attack: { type: 'melee', range: 1.1, windup: 0.2, cooldown: 0.8 },
+    xp: 0, gold: [0, 0], loot: [],
+  },
+  {
+    id: 'lobo_alfa', name: 'Alfa Celestial', kind: 'wolf', color: '#fff0b0', spirit: true, hp: 160, hpLv: 22, dmg: 16, dmgLv: 4.5, armor: 5,
+    speed: 4.6, aggro: 10, leash: 30, radius: 0.45, scale: 1.4, attack: { type: 'melee', range: 1.35, windup: 0.2, cooldown: 0.75 },
+    xp: 0, gold: [0, 0], loot: [],
+  },
+  {
+    id: 'sentinela', name: 'Sentinela Astral', kind: 'totem', color: '#7ab8ff', spirit: true, stationary: true, hp: 120, hpLv: 15, dmg: 8, dmgLv: 2.5,
+    armor: 4, speed: 0, aggro: 8, leash: 30, radius: 0.4, attack: { type: 'ranged', range: 7.5, windup: 0.25, cooldown: 1.1, projectile: 'orb', keepAway: 0 },
+    xp: 0, gold: [0, 0], loot: [],
+  },
 ];
+
+for (const e of list) {
+  if (e.spirit) continue;
+  e.hp = Math.round(e.hp * DIFFICULTY.hp);
+  e.hpLv = Math.round(e.hpLv * DIFFICULTY.hp * 10) / 10;
+  e.dmg = Math.round(e.dmg * DIFFICULTY.dmg * 10) / 10;
+  e.dmgLv = Math.round(e.dmgLv * DIFFICULTY.dmg * 10) / 10;
+  e.attack.cooldown *= DIFFICULTY.cooldown;
+  e.attack.windup *= DIFFICULTY.windup;
+  e.aggro += DIFFICULTY.aggro;
+  e.speed *= DIFFICULTY.speed;
+  e.xp = Math.round(e.xp * 1.25);
+}
 
 export const ENEMIES: Record<string, EnemyDef> = Object.fromEntries(list.map((e) => [e.id, e]));

@@ -44,6 +44,10 @@ export class Enemy extends Actor {
   /** acumulador para atualização reduzida quando longe do jogador */
   lodAcc = 0;
   boss: BossBrain | null = null;
+  /** chefe adormecido (estátua) até a missão começar */
+  dormant = false;
+  elite = false;
+  private aura: Phaser.GameObjects.Image | null = null;
   private bar: Phaser.GameObjects.Container;
   private barFill: Phaser.GameObjects.Rectangle;
   private barShownT = 0;
@@ -55,10 +59,12 @@ export class Enemy extends Actor {
     x: number,
     y: number,
     level: number,
-    opts: { team?: 'enemy' | 'ally'; tag?: string; groupId?: string; life?: number } = {},
+    opts: { team?: 'enemy' | 'ally'; tag?: string; groupId?: string; life?: number; elite?: boolean; dormant?: boolean } = {},
   ) {
     super(x, y);
     const def = ENEMIES[defId];
+    this.elite = !!opts.elite && !def.boss;
+    this.dormant = !!opts.dormant;
     this.def = def;
     this.level = level;
     this.team = opts.team ?? 'enemy';
@@ -70,23 +76,40 @@ export class Enemy extends Actor {
     this.hp = this.maxHp;
     this.dmg = def.dmg + def.dmgLv * (level - 1);
     this.armor = def.armor + (level - 1) * 0.5;
+    if (this.elite) {
+      this.maxHp = Math.round(this.maxHp * 2.2);
+      this.hp = this.maxHp;
+      this.dmg *= 1.4;
+      this.armor += 3;
+    }
     this.homeX = x;
     this.homeY = y;
     this.wanderX = x;
     this.wanderY = y;
+    const scale = (def.scale ?? 1) * (this.elite ? 1.15 : 1);
     this.view =
       def.kind === 'humanoid'
-        ? new CharacterView(ctx.stage, { look: def.look, scale: def.scale ?? 1 })
-        : new CharacterView(ctx.stage, { creature: def.kind, color: def.color, scale: def.scale ?? 1 });
-    if (this.tag === 'eco') this.view.setTint(0xc8a8ff);
-    if (this.team === 'ally') this.view.setTint(0xa8f8ff);
+        ? new CharacterView(ctx.stage, { look: def.look, scale })
+        : new CharacterView(ctx.stage, { creature: def.kind, color: def.color, scale, spirit: def.spirit });
+    this.view.setTint(this.baseTint());
     this.view.root.setAlpha(0);
-    ctx.stage.tweens.add({ targets: this.view.root, alpha: this.team === 'ally' ? 0.85 : 1, duration: 300 });
+    ctx.stage.tweens.add({ targets: this.view.root, alpha: 1, duration: 300 });
+    if (this.elite || def.spirit) {
+      this.aura = ctx.stage.add.image(0, 0, 'fx', 'glow').setBlendMode(Phaser.BlendModes.ADD).setTint(this.elite ? 0xffb030 : 0x7cd8ff).setAlpha(0.4);
+      this.aura.setScale(0.5 * scale, 0.22 * scale);
+    }
 
-    const bw = def.boss ? 0 : 18;
+    const bw = def.boss ? 0 : 20;
     const bg = ctx.stage.add.rectangle(0, 0, bw + 2, 4, 0x1b1a24).setOrigin(0.5, 0.5);
-    this.barFill = ctx.stage.add.rectangle(-bw / 2, 0, bw, 2, this.team === 'ally' ? 0x7cf0ff : 0xd8333b).setOrigin(0, 0.5);
-    this.bar = ctx.stage.add.container(0, 0, [bg, this.barFill]).setVisible(false);
+    this.barFill = ctx.stage.add.rectangle(-bw / 2, 0, bw, 2, this.team === 'ally' ? 0x7cf0ff : this.elite ? 0xffa030 : 0xd8333b).setOrigin(0, 0.5);
+    const items: Phaser.GameObjects.GameObject[] = [bg, this.barFill];
+    if (this.team === 'enemy' && !def.boss) {
+      const lv = ctx.stage.add
+        .text(-bw / 2 - 2, 0, String(level), { fontFamily: 'system-ui, sans-serif', fontSize: '6px', fontStyle: 'bold', color: this.elite ? '#ffc060' : '#f4e9c8', stroke: '#1b1a24', strokeThickness: 2, resolution: 8 })
+        .setOrigin(1, 0.5);
+      items.push(lv);
+    }
+    this.bar = ctx.stage.add.container(0, 0, items).setVisible(false);
     if (def.boss) this.boss = new BossBrain();
     this.faceDir(rand(-1, 1), rand(-1, 1));
     this.syncView();
@@ -108,10 +131,12 @@ export class Enemy extends Actor {
   syncView(): void {
     super.syncView();
     const s = toScreen(this.x, this.y);
-    const h = (this.def.kind === 'humanoid' ? 34 : this.def.kind === 'slime' ? 18 : 22) * (this.def.scale ?? 1);
-    this.bar.setPosition(Math.round(s.x), Math.round(s.y - h));
+    const k = this.def.kind;
+    const h = (k === 'humanoid' ? 36 : k === 'slime' ? 22 : k === 'totem' ? 32 : 26) * (this.def.scale ?? 1) * (this.elite ? 1.15 : 1);
+    this.bar.setPosition(s.x, s.y - h);
     this.bar.setDepth(depthOf(this.x, this.y) + 5000);
-    this.barFill.width = 18 * Math.max(0, this.hp / this.maxHp);
+    this.barFill.width = 20 * Math.max(0, this.hp / this.maxHp);
+    if (this.aura) this.aura.setPosition(s.x, s.y).setDepth(depthOf(this.x, this.y) - 2);
     this.bar.setVisible(this.barShownT > 0 && !this.dead);
   }
 
@@ -120,9 +145,10 @@ export class Enemy extends Actor {
   }
 
   baseTint(): number | null {
+    if (this.dormant) return 0x9a98a8;
     if (this.boss && this.boss.phase >= 3) return 0xff9090;
     if (this.tag === 'eco') return 0xc8a8ff;
-    if (this.team === 'ally') return 0xa8f8ff;
+    if (this.elite) return 0xffe0b0;
     return null;
   }
 
@@ -131,7 +157,7 @@ export class Enemy extends Actor {
       let best: Actor | null = null;
       let bd = 7;
       for (const e of ctx.enemies) {
-        if (e.dead || e.team !== 'enemy') continue;
+        if (e.dead || e.team !== 'enemy' || e.dormant) continue;
         const d = e.distTo(ctx.player);
         if (d < bd) {
           bd = d;
@@ -164,6 +190,10 @@ export class Enemy extends Actor {
     if (away) {
       dx = -dx;
       dy = -dy;
+    }
+    if (this.def.stationary) {
+      this.faceDir(dx, dy);
+      return;
     }
     const step = speed * dt;
     if (this.detourT > 0) {
@@ -212,6 +242,11 @@ export class Enemy extends Actor {
   update(ctx: WorldCtx, dt: number): void {
     if (this.dead) return;
     this.view.update(dt);
+    if (this.dormant) {
+      this.view.setMoving(false, dt);
+      this.syncView();
+      return;
+    }
     if (this.barShownT > 0) this.barShownT -= dt;
     const burn = this.tickStatus(dt);
     if (burn > 0) {
@@ -405,7 +440,10 @@ export class Enemy extends Actor {
     this.stateT = 0.3;
     if (!target) return;
     if (a.type === 'melee' || (a.type === 'charge' && this.chargeDx === 0)) {
-      this.view.swing('melee', 0.18);
+      const st1 = toScreen(this.x, this.y);
+      const st2 = toScreen(target.x, target.y);
+      this.view.swing(this.isBoss && Math.random() < 0.4 ? 'heavy' : Math.random() < 0.5 ? 'melee' : 'reverse', this.isBoss ? 0.32 : 0.2);
+      this.view.lunge(st2.x - st1.x, st2.y - st1.y, this.isBoss ? 8 : 6);
       const d = this.distTo(target);
       if (d <= a.range + target.radius + 0.35) {
         ctx.hitActor(target, this.dmg, { source: this, knock: this.isBoss ? 0.45 : 0.22 });
@@ -415,7 +453,13 @@ export class Enemy extends Actor {
       this.boss?.onMelee(this, ctx);
       const s1 = toScreen(this.x, this.y);
       const s2 = toScreen(target.x, target.y);
-      ctx.fx.slash((this.x + target.x) / 2, (this.y + target.y) / 2, Math.atan2(s2.y - s1.y, s2.x - s1.x), 0.8 * (this.def.scale ?? 1), 0xffb0a0);
+      if (this.def.kind === 'humanoid') ctx.fx.slash((this.x + target.x) / 2, (this.y + target.y) / 2, Math.atan2(s2.y - s1.y, s2.x - s1.x), 0.8 * (this.def.scale ?? 1), this.team === 'ally' ? 0xa8f0ff : 0xff9a8a, this.isBoss ? 'heavy' : 'slash', Math.random() < 0.5);
+      else {
+        // mordida/garras
+        const mid = toScreen((this.x + target.x) / 2, (this.y + target.y) / 2);
+        const claw = ctx.stage.add.image(mid.x, mid.y - 10, 'fx', 'claw').setScale(0.25 * (this.def.scale ?? 1)).setDepth(depthOf(target.x, target.y) + 50).setTint(this.team === 'ally' ? 0xa8f0ff : 0xffd0c0).setAlpha(0.9);
+        ctx.stage.tweens.add({ targets: claw, alpha: 0, scale: 0.33 * (this.def.scale ?? 1), duration: 220, onComplete: () => claw.destroy() });
+      }
     } else if (a.type === 'ranged') {
       this.view.swing('ranged', 0.2);
       const lead = 0.25;
@@ -432,7 +476,8 @@ export class Enemy extends Actor {
         range: a.range + 2,
         dmg: this.dmg,
         team: this.team === 'ally' ? 'player' : 'enemy',
-        frame: kind === 'web' ? 'web' : kind === 'orb' ? 'orb_red' : 'arrow',
+        frame: kind === 'web' ? 'web' : kind === 'orb' ? (this.team === 'ally' ? 'orb' : 'orb_red') : 'arrow',
+        tint: this.def.spirit ? 0x9ad0ff : undefined,
         onHit: kind === 'web' ? { slow: { t: 2, f: 0.5 } } : undefined,
         source: this,
       });
@@ -447,11 +492,15 @@ export class Enemy extends Actor {
   destroyView(scene: Phaser.Scene): void {
     this.clearTelegraph();
     this.bar.destroy();
+    this.aura?.destroy();
+    this.view.setTint(0xffffff);
+    this.view.squash(0.3);
     scene.tweens.add({
       targets: this.view.root,
       alpha: 0,
       y: this.view.root.y - 6,
-      duration: 380,
+      delay: 80,
+      duration: 420,
       onComplete: () => this.view.destroy(),
     });
   }
@@ -459,6 +508,7 @@ export class Enemy extends Actor {
   destroyNow(): void {
     this.clearTelegraph();
     this.bar.destroy();
+    this.aura?.destroy();
     this.view.destroy();
   }
 }
@@ -489,12 +539,12 @@ export class BossBrain {
     bus.emit('boss:update', null);
   }
 
+  /** A fala de abertura agora fica na cena de apresentação do chefe (WorldScene). */
   onEngage(e: Enemy, ctx: WorldCtx): void {
     if (this.engaged) return;
     this.engaged = true;
     sfx.play('boss');
     ctx.fx.shake(0.006, 400);
-    ctx.fx.label(e.x, e.y, '“Ninguém passa. Ninguém… passa.”', '#ffb0a0');
     if (game.hasItem('brasao_partido') && !game.state.flags.brasao_usado) {
       game.state.flags.brasao_usado = true;
       e.hp = Math.round(e.maxHp * 0.7);

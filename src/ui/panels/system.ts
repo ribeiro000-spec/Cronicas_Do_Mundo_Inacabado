@@ -165,16 +165,15 @@ function settingsCard(ctx: PanelCtx): HTMLElement {
     window.dispatchEvent(new Event('controls-resize'));
   };
   const zooms: [number, string][] = [
-    [0, 'Auto'],
-    [2, '2×'],
-    [3, '3×'],
-    [4, '4×'],
-    [5, '5×'],
+    [-1, 'Longe'],
+    [0, 'Normal'],
+    [1, 'Perto'],
   ];
+  const zoomNow = game.settings.zoom === -1 || game.settings.zoom === 1 ? game.settings.zoom : 0;
   const zoomChips = h(
     'div',
     { class: 'chips' },
-    zooms.map(([z, l]) => h('button', { class: `chip${game.settings.zoom === z ? ' sel' : ''}`, onclick: () => (game.applySettings({ zoom: z }), ctx.rerender()) }, l)),
+    zooms.map(([z, l]) => h('button', { class: `chip${zoomNow === z ? ' sel' : ''}`, onclick: () => (game.applySettings({ zoom: z }), ctx.rerender()) }, l)),
   );
   return h(
     'div',
@@ -188,6 +187,7 @@ function settingsCard(ctx: PanelCtx): HTMLElement {
     toggle('Vibração', 'Ao receber dano (celulares compatíveis)', 'vibration'),
     toggle('Números de dano', '', 'damageNumbers'),
     toggle('Partículas e ambiente', 'Desligue para ganhar desempenho', 'particles'),
+    toggle('Alta resolução', 'Imagem mais nítida; desligue se o celular esquentar ou travar', 'hiRes'),
     toggle('Tremor de tela', '', 'screenShake'),
     toggle('Mostrar FPS', '', 'showFps'),
     h('div', { class: 'setting' }, h('div', { class: 's-label' }, 'Idioma'), h('span', { class: 'muted' }, 'Português (Brasil)')),

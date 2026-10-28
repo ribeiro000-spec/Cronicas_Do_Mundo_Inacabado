@@ -1,5 +1,32 @@
 /* Barramento de eventos tipado: conecta sistemas, cena e interface sem dependências diretas. */
 
+import type { HumanoidLook } from './types';
+
+/** Uma fala de cena (apresentação do chefe). */
+export interface CineLine {
+  who: string;
+  text: string;
+  look?: HumanoidLook;
+  /** lado do retrato */
+  side?: 'left' | 'right';
+}
+
+/** Cartão de destaque no meio da tela (item importante, missão concluída, evolução…). */
+export interface HighlightSpec {
+  kind: 'item' | 'quest' | 'skill' | 'fragment' | 'boss' | 'level';
+  /** linha pequena de cima, ex.: "Item importante" */
+  title: string;
+  /** nome em destaque */
+  name: string;
+  text?: string;
+  /** ícone de item ou de habilidade (a interface desenha) */
+  itemId?: string;
+  skillId?: string;
+  tier?: number;
+  /** cor de destaque (#rrggbb) */
+  color?: string;
+}
+
 export interface GameEvents {
   'state:changed': void;
   'inventory:changed': void;
@@ -23,6 +50,12 @@ export interface GameEvents {
   'travel:end': void;
   'saved': { slot: string };
   'demo:ending': void;
+  'cinematic:start': void;
+  'cinematic:title': { name: string; subtitle: string };
+  'cinematic:dialogue': { lines: CineLine[]; onDone: () => void };
+  'cinematic:skip': void;
+  'cinematic:end': void;
+  highlight: HighlightSpec;
 }
 
 type Handler<T> = (payload: T) => void;

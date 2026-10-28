@@ -30,6 +30,25 @@ o progresso fica salvo no próprio navegador.
 Não é preciso configurar o nome do repositório em lugar nenhum: o build usa caminhos relativos
 (`base: './'` no `vite.config.ts`).
 
+### A página fica parada em “Costurando o mundo…”
+
+Se o console do navegador mostrar `main.ts` ou `manifest.webmanifest` com erro 404, o Pages está publicando
+os arquivos-fonte em vez do site compilado. Confira:
+
+1. **Settings → Pages → Source** precisa estar em **GitHub Actions** (não em “Deploy from a branch”).
+2. A pasta **`.github/workflows/deploy.yml`** precisa existir no repositório. O envio pela página do GitHub
+   (arrastar arquivos) às vezes ignora pastas que começam com ponto; nesse caso crie o arquivo em
+   **Add file → Create new file** com esse caminho e cole o conteúdo.
+3. Na aba **Actions**, a execução “Publicar no GitHub Pages” precisa terminar com ✅. Se falhar, abra o log.
+
+Depois de corrigir, recarregue a página com Ctrl+Shift+R.
+
+### “Não foi possível carregar o mundo (404)”
+
+A pasta `public/` não chegou ao repositório (o envio pela página do GitHub aceita no máximo 100 arquivos por vez).
+O mapa (`public/data/world`) é gerado pelo próprio workflow com `npm run world`, então basta enviar os arquivos
+fixos: `public/manifest.webmanifest`, `public/sw.js` e `public/icons/`.
+
 ## Rodar no seu computador
 
 Precisa do [Node.js](https://nodejs.org) 20.19 ou mais novo.
@@ -79,15 +98,23 @@ Tudo do MVP do GDD (§17), e um pouco mais:
   com pré-carga na direção do movimento.
 - **Personagem livre:** 4 arquétipos iniciais (Guerreiro, Maga, Arqueira, Clérigo) que só orientam o começo.
   6 atributos (FOR, DES, INT, VON, VIG, AFI) com distribuição e **prévia antes de confirmar**.
-- **11 habilidades em 8 escolas**, com até 5 níveis de maestria e 4 atalhos.
+- **19 habilidades em 8 escolas**, com até 5 níveis de maestria e 4 atalhos. Cada habilidade **evolui**
+  nas maestrias 3 e 5: muda de nome, de aparência e de efeito (ex.: Espírito Lobo → Matilha Espiritual,
+  com dois lobos violeta → Alfa Celestial, um lobo dourado gigante que lidera a matilha).
 - **Equipamento modular:** 9 slots; cada peça muda só a sua camada do sprite. Armas de duas mãos
   bloqueiam a mão secundária; duas adagas, espada + escudo e arma + foco funcionam.
-- **Combate de ação** com mira automática, esquiva com invencibilidade, números de dano, críticos,
-  empurrão, atordoar, raízes, lentidão e queimadura. Inimigos “brilham” antes de atacar.
+- **Combate de ação** com mira automática, **combo de três golpes** (o terceiro é mais forte e muda
+  conforme a arma), “congelamento” de impacto, faíscas, esquiva com invencibilidade, números de dano,
+  críticos, empurrão, atordoar, raízes, lentidão e queimadura. Inimigos “brilham” antes de atacar.
+- **Inimigos de elite** (brilho dourado, mais vida e dano, mais recompensa) e grupos maiores.
 - **Inimigos:** slimes, lobos (fogem feridos), javalis (investida), aranhas (teia que deixa lento),
   goblins, goblins arqueiros, saqueadores, atiradores e esqueletos — em grupos que reaparecem.
 - **Chefe com 3 fases** (Terreno → Agressividade → Forma Final), ataques telegrafados, invocações
-  e janelas de vulnerabilidade. Uma pista (o Brasão Partido) muda o encontro.
+  e janelas de vulnerabilidade. Uma pista (o Brasão Partido) muda o encontro. Ele fica adormecido como
+  estátua até a missão chegar a ele e desperta numa **cena de apresentação** (câmera, falas, nome na tela).
+- **Introdução ilustrada** num jogo novo: o mundo, as Costuras e a origem do seu arquétipo.
+- **Cartões de destaque** para itens importantes, missões concluídas, fragmentos de mapa, chefe
+  derrotado e evolução de habilidade.
 - **8 missões** com diálogos, objetivos, recompensas e **rotas exclusivas**
   (Academia de Lúmen × Ordem do Último Marco), seguindo os códigos M01–M05 do GDD.
 - **Mapa fragmentado** com névoa, fragmentos de mapa, marcadores pessoais e **viagem rápida**
@@ -126,23 +153,28 @@ Tudo do MVP do GDD (§17), e um pouco mais:
 │  ├─ systems/                    # regras puras: atributos, inventário, XP, missões, save, névoa, sons
 │  ├─ world/                      # carregamento de chunks e grade de colisão
 │  ├─ entities/                   # jogador, inimigos (IA e chefe), NPCs, projéteis, pontos de interesse
-│  ├─ render/                     # arte procedural em pixel art, sprites em camadas, efeitos
+│  ├─ combat/                     # habilidades do jogador e suas evoluções (SkillCaster)
+│  ├─ render/                     # arte procedural em pixel art (art/: chão, objetos, casas, efeitos),
+│  │                              # sprites em camadas, efeitos, ilustrações da introdução
 │  ├─ scenes/                     # BootScene (texturas) e WorldScene (o jogo)
-│  └─ ui/                         # HUD, controles de toque, menus, mapa, diálogo, loja (DOM puro)
+│  └─ ui/                         # HUD, controles de toque, menus, mapa, diálogo, loja, introdução,
+│                                 # cena do chefe, cartões de destaque e atmosfera (DOM puro)
 └─ tools/generate-world.mjs       # gera o mundo em chunks
 ```
 
 ## Como acrescentar conteúdo
 
 - **Item novo:** `src/data/items.ts` (requisitos, estatísticas, aparência da camada e ícone).
-- **Habilidade:** `src/data/skills.ts` + o efeito em `WorldScene.performSkill` (pelo `kind`).
+- **Habilidade:** `src/data/skills.ts` (com `tiers` para as evoluções) + o efeito em
+  `src/combat/SkillCaster.ts` (pelo `kind`; o `tier` 0, 1 ou 2 diz o estágio de evolução).
 - **Inimigo:** `src/data/enemies.ts` (humanoides reaproveitam o gerador de personagens) e coloque-o
   na tabela de `tools/generate-world.mjs`.
 - **NPC e diálogo:** `src/data/npcs.ts`; posição em `tools/generate-world.mjs` (`poi({...})`).
 - **Missão:** `src/data/quests.ts` (etapas: falar, derrotar, coletar, chegar, interagir).
 - **Balanceamento:** `src/config.ts`.
 
-Depois de mexer no gerador, rode `npm run world` e faça commit de `public/data/world`.
+Depois de mexer no gerador, rode `npm run world` para testar localmente. Não é preciso enviar
+`public/data/world` ao GitHub: o workflow (e o `npm run build`) gera o mapa a cada publicação.
 
 ## Trocar a arte procedural pela sua
 

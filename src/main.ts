@@ -1,5 +1,7 @@
 import * as Phaser from 'phaser';
 import './ui/styles.css';
+import { computeDpr, display } from './core/display';
+import { bus } from './core/events';
 import { game } from './game';
 import { BootScene } from './scenes/BootScene';
 import { WorldScene } from './scenes/WorldScene';
@@ -28,6 +30,8 @@ async function start(): Promise<void> {
   game.setManifest(world.manifest);
   progress(0.45, 'Desenhando o mundo…');
 
+  // o canvas é desenhado em pixels reais da tela (até 2×) e exibido no tamanho da janela
+  display.dpr = computeDpr(game.settings.hiRes);
   const phaser = new Phaser.Game({
     type: Phaser.AUTO,
     parent: 'game',
@@ -37,15 +41,35 @@ async function start(): Promise<void> {
     antialias: false,
     disableContextMenu: true,
     scale: {
-      mode: Phaser.Scale.RESIZE,
-      width: window.innerWidth,
-      height: window.innerHeight,
+      mode: Phaser.Scale.NONE,
+      width: Math.round(window.innerWidth * display.dpr),
+      height: Math.round(window.innerHeight * display.dpr),
+      zoom: 1 / display.dpr,
     },
     input: { activePointers: 4 },
     fps: { target: 60, smoothStep: true },
     render: { powerPreference: 'high-performance', batchSize: 4096 },
     scene: [BootScene, WorldScene],
   });
+
+  const fit = () => {
+    const dpr = computeDpr(game.settings.hiRes);
+    const w = Math.round(window.innerWidth * dpr);
+    const h = Math.round(window.innerHeight * dpr);
+    if (dpr === display.dpr && phaser.scale.width === w && phaser.scale.height === h) return;
+    display.dpr = dpr;
+    phaser.scale.resize(w, h);
+    phaser.scale.setZoom(1 / dpr);
+  };
+  let fitTimer = 0;
+  const fitSoon = () => {
+    clearTimeout(fitTimer);
+    fitTimer = window.setTimeout(fit, 60);
+  };
+  window.addEventListener('resize', fitSoon);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 250));
+  window.visualViewport?.addEventListener('resize', fitSoon);
+  bus.on('state:changed', fitSoon);
 
   await new Promise<void>((resolve) => phaser.events.once('art-ready', () => resolve()));
   progress(1, 'Pronto!');

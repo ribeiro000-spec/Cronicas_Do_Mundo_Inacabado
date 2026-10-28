@@ -15,6 +15,8 @@ export interface HitOpts {
   slow?: { t: number; f: number };
   burn?: { t: number; dps: number };
   silent?: boolean;
+  /** sem faísca de impacto (dano em área contínuo) */
+  light?: boolean;
 }
 
 export interface ProjectileSpec {
@@ -35,6 +37,14 @@ export interface ProjectileSpec {
   /** arremesso em arco que explode no destino (bomba) */
   lob?: { tx: number; ty: number; radius: number; burn?: { t: number; dps: number } };
   source?: Actor | null;
+  /** escala visual do projétil */
+  scale?: number;
+  /** cor do rastro de partículas */
+  trail?: number;
+  /** ao acertar, salta para outros alvos (relâmpago) */
+  chain?: number;
+  /** explode em área ao acertar */
+  burstRadius?: number;
 }
 
 /** O que as entidades enxergam da cena. */

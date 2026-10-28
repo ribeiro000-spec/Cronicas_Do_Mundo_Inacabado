@@ -71,6 +71,14 @@ export type SkillSchool =
   | 'alquimia';
 
 export type SkillKind =
+  | 'quake'
+  | 'chain'
+  | 'rain'
+  | 'frost'
+  | 'turret'
+  | 'fan'
+  | 'hammer'
+  | 'buff'
   | 'spin'
   | 'dash'
   | 'bolt'
@@ -98,6 +106,8 @@ export interface SkillDef {
   duration?: number;
   req?: Partial<Attrs>;
   reqLevel?: number;
+  /** evoluções: ao atingir a maestria `at`, a habilidade muda de nome e de efeito */
+  tiers?: { at: number; name: string; desc: string }[];
 }
 
 export interface QuestState {
@@ -121,6 +131,7 @@ export interface HumanoidLook {
   hair: string;
   hairStyle: PlayerLook['hairStyle'];
   body?: 'normal' | 'small' | 'skeleton';
+  ears?: 'pointy';
   eyes?: string;
   head?: ItemVisual | null;
   chest?: ItemVisual | null;
@@ -259,6 +270,7 @@ export interface WorldManifest {
   overviewPalette: string[];
   overview: string;
   art: Record<string, string>;
+  edgeKinds?: string[];
 }
 
 export interface SpawnDef {
@@ -276,4 +288,6 @@ export interface ChunkData {
   g: string;
   o: [number, number, number][];
   s: SpawnDef[];
+  /** bordas de transição: [índiceLocal, direção, terrenoDeCima, …] */
+  e?: number[];
 }
