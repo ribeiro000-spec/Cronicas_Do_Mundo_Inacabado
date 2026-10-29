@@ -1,12 +1,28 @@
 import * as Phaser from 'phaser';
+import { snapPx } from '../core/display';
 import type { HumanoidLook } from '../core/types';
 import { ART_SCALE } from './registerArt';
-import { HAND_MAIN, HAND_OFF, HUM_FOOT_Y, HUM_H, ensureCreature, ensureHumanoid, ensureWeapon, type CreatureArtKind } from './characterArt';
+import {
+  FRAMES_PER_FACING,
+  FRAME_ATTACK,
+  FRAME_CAST,
+  HANDS,
+  HUM_FOOT_Y,
+  HUM_H,
+  ensureCreature,
+  ensureFist,
+  ensureWeapon,
+  ensureHumanoid,
+  CREATURE_FRAMES,
+  type CreatureArtKind,
+} from './characterArt';
 
-/* Visual de um personagem: sombra + corpo (quadros) + arma e mão secundária como sprites
- * separados, dentro de um Container posicionado nos pés. Coordenadas internas em pixels
- * de arte (2× a unidade lógica); o container aplica a escala.
+/* Visual de um personagem: sombra + corpo (quadros) + arma, mão secundária e o punho que
+ * segura a arma como sprites separados, dentro de um Container posicionado nos pés.
+ * Coordenadas internas em pixels de arte (2× a unidade lógica); o container aplica a escala.
  *
+ * Humanoides: 2 vistas (3/4 de frente e de costas, espelhadas) × 9 quadros — parado,
+ * caminhada de 6 tempos, golpe e magia. A arma acompanha a mão em cada quadro.
  * Animações de ataque: preparação curta → golpe rápido → continuação, com avanço do corpo
  * e “esticar e achatar”. Combos alternam a direção do golpe. */
 
@@ -19,6 +35,10 @@ export class CharacterView {
   private shadow: Phaser.GameObjects.Image;
   private weapon: Phaser.GameObjects.Image | null = null;
   private off: Phaser.GameObjects.Image | null = null;
+  private fist: Phaser.GameObjects.Image | null = null;
+  /** pose de ação em andamento (golpe ou magia) */
+  private pose: 'atk' | 'cast' | null = null;
+  private poseT = 0;
   private weaponStyle = '';
   private facingN = false;
   private flip = false;
@@ -47,9 +67,9 @@ export class CharacterView {
     if (opts.creature) {
       this.creature = opts.creature;
       this.baseKey = ensureCreature(scene.textures, opts.creature, opts.color ?? '#888888', !!opts.spirit);
-      const oy = opts.creature === 'slime' ? 0.94 : opts.creature === 'totem' ? 0.95 : 0.92;
+      const oy = opts.creature === 'slime' ? 0.93 : opts.creature === 'totem' ? 0.95 : opts.creature === 'spider' ? 0.89 : 0.9;
       this.body = scene.add.sprite(0, 0, this.baseKey, 0).setOrigin(0.5, oy);
-      this.shadow.setScale(opts.creature === 'slime' ? 1.3 : opts.creature === 'totem' ? 1.1 : 1.8, 1.2);
+      this.shadow.setScale(opts.creature === 'slime' ? 1.3 : opts.creature === 'totem' ? 1.1 : opts.creature === 'spider' ? 1.9 : 1.8, 1.2);
     } else {
       this.body = scene.add.sprite(0, 0, '__DEFAULT').setOrigin(0.5, HUM_FOOT_Y / HUM_H);
       this.shadow.setScale(1.1, 1);
@@ -64,8 +84,10 @@ export class CharacterView {
     this.body.setTexture(this.baseKey, this.frameIndex());
     this.weapon?.destroy();
     this.off?.destroy();
+    this.fist?.destroy();
     this.weapon = null;
     this.off = null;
+    this.fist = null;
     this.weaponStyle = look.main?.style ?? '';
     if (look.off) {
       const w = ensureWeapon(this.scene.textures, look.off);
@@ -76,21 +98,30 @@ export class CharacterView {
       const w = ensureWeapon(this.scene.textures, look.main);
       this.weapon = this.scene.add.image(0, 0, w.key).setOrigin(w.gripX / w.w, w.gripY / w.h);
       this.root.add(this.weapon);
+      this.fist = this.scene.add.image(0, 0, ensureFist(this.scene.textures, look)).setOrigin(0.5, 0.5);
+      this.root.add(this.fist);
     }
     this.layout(true);
   }
 
   private frameIndex(): number {
     if (this.creature) {
-      if (this.creature === 'totem') return Math.floor(this.idleT / 0.4) % 3;
+      const cf = CREATURE_FRAMES[this.creature];
+      if (cf.idleCycle) return Math.floor(this.idleT / 0.4) % cf.idleCycle;
+      if (this.poseT > 0 && cf.attack !== undefined) return cf.attack;
       if (!this.moving) return 0;
-      return Math.floor(this.walkT / 0.11) % 2 === 0 ? 1 : 2;
+      return 1 + (Math.floor(this.walkT / cf.step) % cf.walk);
     }
-    if (!this.moving) return this.facingN ? 3 : 0;
-    // ciclo de 4 tempos: passo A · passagem · passo B · passagem
-    const phase = Math.floor(this.walkT / 0.1) % 4;
-    const step = phase === 0 ? 1 : phase === 2 ? 2 : 0;
-    return (this.facingN ? 3 : 0) + step;
+    const base = this.facingN ? FRAMES_PER_FACING : 0;
+    if (this.poseT > 0 && this.pose) return base + (this.pose === 'cast' ? FRAME_CAST : FRAME_ATTACK);
+    if (!this.moving) return base;
+    // caminhada de 6 tempos
+    return base + 1 + (Math.floor(this.walkT / 0.085) % 6);
+  }
+
+  /** Mãos no quadro atual (pixels de arte, relativas aos pés). */
+  private hands(): (typeof HANDS)[number] {
+    return HANDS[this.frameIndex() % FRAMES_PER_FACING];
   }
 
   /** Vira o personagem de acordo com a direção na tela. */
@@ -120,52 +151,54 @@ export class CharacterView {
       this.flashTimer -= dt;
       if (this.flashTimer <= 0) this.applyTint();
     }
-    // respiração parada, quique ao andar, recuperação do avanço
-    let bob = 0;
-    if (this.moving && !this.creature) bob = Math.floor(this.walkT / 0.1) % 2 === 1 ? -2 : 0;
-    else if (!this.creature) bob = Math.sin(this.idleT * 2.4) > 0.6 ? -1 : 0;
-    if (this.creature === 'slime') bob = 0;
-    if (this.creature === 'totem') {
-      this.body.setFrame(this.frameIndex());
-      bob = Math.round(Math.sin(this.idleT * 2) * 2);
+    if (this.poseT > 0) {
+      this.poseT -= dt;
+      if (this.poseT <= 0) this.pose = null;
     }
+    this.body.setFrame(this.frameIndex());
+    // respiração parada e recuperação do avanço (o quique da caminhada já está nos quadros)
+    let bob = 0;
+    if (!this.creature && !this.moving && this.poseT <= 0) bob = Math.sin(this.idleT * 2.4) > 0.6 ? -1 : 0;
+    if (this.creature === 'totem') bob = Math.round(Math.sin(this.idleT * 2) * 2);
     this.lungeX *= Math.pow(0.0005, dt);
     this.lungeY *= Math.pow(0.0005, dt);
     this.stretch *= Math.pow(0.0008, dt);
     this.body.setPosition(Math.round(this.lungeX), Math.round(bob + this.lungeY));
     this.body.setScale(1 + this.stretch * 0.5, 1 - this.stretch * 0.5);
+    if (this.creature) return;
     const dir = this.flip ? -1 : 1;
-    if (this.weapon && !this.swinging) this.weapon.setPosition(HAND_MAIN.x * dir + this.lungeX, HAND_MAIN.y + bob + this.lungeY);
-    if (this.off) this.off.setPosition(HAND_OFF.x * dir + this.lungeX, HAND_OFF.y + bob + this.lungeY);
+    const h = this.hands();
+    const lx = Math.round(this.lungeX);
+    const ly = Math.round(bob + this.lungeY);
+    if (this.weapon && !this.swinging) this.weapon.setPosition(h.main.x * dir + lx, h.main.y + ly);
+    if (this.off) this.off.setPosition(h.off.x * dir + lx, h.off.y + ly);
+    if (this.fist && this.weapon) this.fist.setPosition(Math.round(this.weapon.x), Math.round(this.weapon.y)).setVisible(this.weapon.visible);
   }
 
   private layout(force: boolean): void {
     this.body.setFlipX(this.flip);
     const dir = this.flip ? -1 : 1;
+    const h = this.hands();
     if (this.weapon) {
       this.weapon.setFlipX(this.flip);
       if (!this.swinging) {
-        this.weapon.setPosition(HAND_MAIN.x * dir, HAND_MAIN.y);
+        this.weapon.setPosition(h.main.x * dir, h.main.y);
         this.weapon.setRotation(this.idleRotation() * dir);
       }
     }
+    this.fist?.setFlipX(this.flip);
     if (this.off) {
       this.off.setFlipX(this.flip);
-      this.off.setPosition(HAND_OFF.x * dir, HAND_OFF.y);
+      this.off.setPosition(h.off.x * dir, h.off.y);
     }
     if (!force && !this.weapon && !this.off) return;
-    // de costas, arma e escudo ficam atrás do corpo
+    // escudo e arma ficam nas mãos, à frente do corpo; o punho por cima do cabo
     this.root.removeAll(false);
     this.root.add(this.shadow);
-    if (this.facingN) {
-      if (this.weapon) this.root.add(this.weapon);
-      if (this.off) this.root.add(this.off);
-      this.root.add(this.body);
-    } else {
-      this.root.add(this.body);
-      if (this.off) this.root.add(this.off);
-      if (this.weapon) this.root.add(this.weapon);
-    }
+    this.root.add(this.body);
+    if (this.off) this.root.add(this.off);
+    if (this.weapon) this.root.add(this.weapon);
+    if (this.fist) this.root.add(this.fist);
   }
 
   private idleRotation(): number {
@@ -197,6 +230,9 @@ export class CharacterView {
 
   /** Animação de ataque. */
   swing(kind: SwingKind, duration = 0.25): void {
+    this.pose = kind === 'cast' ? 'cast' : 'atk';
+    this.poseT = Math.max(0.16, duration + 0.06);
+    this.body.setFrame(this.frameIndex());
     if (this.creature) {
       const dir = this.flip ? -1 : 1;
       this.lunge(dir, 0, 10);
@@ -208,8 +244,9 @@ export class CharacterView {
     }
     const w = this.weapon;
     const dir = this.flip ? -1 : 1;
-    const hx = HAND_MAIN.x * dir;
-    const hy = HAND_MAIN.y;
+    const hand = this.hands().main;
+    const hx = hand.x * dir;
+    const hy = hand.y;
     this.swinging = true;
     this.scene.tweens.killTweensOf(w);
     const ms = Math.max(90, duration * 1000);
@@ -297,6 +334,7 @@ export class CharacterView {
     this.flashTimer = 0.08;
     this.body.setTintFill(0xffffff);
     this.weapon?.setTintFill(0xffffff);
+    this.fist?.setTintFill(0xffffff);
   }
 
   setTint(color: number | null): void {
@@ -305,7 +343,7 @@ export class CharacterView {
   }
 
   private applyTint(): void {
-    for (const o of [this.body, this.weapon, this.off]) {
+    for (const o of [this.body, this.weapon, this.off, this.fist]) {
       if (!o) continue;
       if (this.tintColor === null) o.clearTint();
       else o.setTint(this.tintColor);
@@ -313,12 +351,14 @@ export class CharacterView {
   }
 
   setPosition(x: number, y: number, depth: number): void {
-    this.root.setPosition(x, y);
+    // alinhado a pixels reais da tela: o personagem não "vibra" contra o cenário
+    this.root.setPosition(snapPx(x), snapPx(y));
     this.root.setDepth(depth);
   }
 
   destroy(): void {
     this.scene.tweens.killTweensOf(this.body);
+    if (this.fist) this.scene.tweens.killTweensOf(this.fist);
     if (this.weapon) this.scene.tweens.killTweensOf(this.weapon);
     this.root.destroy(true);
   }

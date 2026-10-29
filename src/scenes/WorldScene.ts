@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { BALANCE, ENGINE } from '../config';
 import { endBarrier, endFury, enemiesIn, performSkill } from '../combat/SkillCaster';
+import { display } from '../core/display';
 import { bus, type CineLine } from '../core/events';
 import { input } from '../core/input';
 import { screenDirToWorld, toScreen, toWorld, worldDirToScreen } from '../core/iso';
@@ -109,7 +110,9 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
     this.tweens.timeScale = 1;
     const cam = this.cameras.main;
     cam.setBackgroundColor('#0b1220');
-    cam.setRoundPixels(true);
+    // o arredondamento do Phaser joga o scroll para pixels lógicos inteiros (4 px reais de uma vez)
+    // e faz a tela tremer; o alinhamento é feito à mão, em pixels reais (alignCamera)
+    cam.setRoundPixels(false);
     this.applyZoom();
     this.snapCamera();
     this.scale.on('resize', this.onResize, this);
@@ -160,7 +163,19 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
     const pref = game.settings.zoom === -1 ? -1 : game.settings.zoom === 1 ? 1 : 0;
     const artPx = clamp(auto + pref, 1, 8);
     const z = artPx / ART_SCALE;
+    display.zoom = z;
     if (this.cameras.main.zoom !== z) this.cameras.main.setZoom(z);
+  }
+
+  /** Centraliza a câmera alinhando o deslocamento a pixels inteiros do canvas. */
+  private alignCamera(x: number, y: number): void {
+    const cam = this.cameras.main;
+    cam.centerOn(x, y);
+    const z = cam.zoom;
+    const ox = cam.width * cam.originX * (1 - z);
+    const oy = cam.height * cam.originY * (1 - z);
+    cam.scrollX = (Math.round(cam.scrollX * z - ox) + ox) / z;
+    cam.scrollY = (Math.round(cam.scrollY * z - oy) + oy) / z;
   }
 
   private setupPointer(): void {
@@ -211,7 +226,7 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
     const t = this.cameraTarget();
     this.camX = t.x;
     this.camY = t.y;
-    this.cameras.main.centerOn(this.camX, this.camY);
+    this.alignCamera(this.camX, this.camY);
   }
 
   /**
@@ -241,7 +256,7 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
     const k = 1 - Math.exp(-dt * rate);
     this.camX += (tx - this.camX) * k;
     this.camY += (ty - this.camY) * k;
-    this.cameras.main.centerOn(this.camX, this.camY);
+    this.alignCamera(this.camX, this.camY);
   }
 
   /** Congela a ação por um instante para dar peso ao golpe. */
@@ -283,7 +298,8 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
       } else if (poi.type === 'boss') {
         if (!game.state.world.bosses.includes(poi.id) && !this.enemies.some((e) => e.groupId === 'boss:' + poi.id && !e.dead)) {
           // o chefe dorme como estátua até a missão chegar a ele
-          this.spawnEnemy(poi.enemy ?? 'cavaleiro_sem_brasao', poi.x, poi.y, 6, { groupId: 'boss:' + poi.id, dormant: true });
+          // a estátua olha para o caminho de quem chega (para baixo na tela)
+          this.spawnEnemy(poi.enemy ?? 'cavaleiro_sem_brasao', poi.x, poi.y, 6, { groupId: 'boss:' + poi.id, dormant: true })?.faceDir(1, 1);
         }
       } else if (!this.pois.has(poi.id)) {
         this.pois.set(poi.id, new PoiSprite(this, poi));
@@ -623,6 +639,7 @@ export class WorldScene extends Phaser.Scene implements SceneApi, WorldCtx {
     p.vy = 0;
     p.view.setMoving(false, 0);
     p.faceTo(boss.x, boss.y);
+    boss.faceTo(p.x, p.y);
     for (const pr of this.projectiles) pr.kill(this, false);
     this.projectiles = [];
     this.cine = { timers: [], boss, finished: false };

@@ -8,16 +8,16 @@ export const STORY_H = 135;
 export type StoryScene = 'mundo' | 'costuras' | 'guerreiro' | 'maga' | 'arqueira' | 'clerigo' | 'eldenor';
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-const bayer = (x: number, y: number) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+export const bayer = (x: number, y: number) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
 
-function hash(a: number, b = 0, c = 0): number {
+export function hash(a: number, b = 0, c = 0): number {
   let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0;
   h = (h ^ (h >>> 13)) * 1274126177;
   h ^= h >>> 16;
   return (h >>> 0) / 4294967296;
 }
 
-function noise1(x: number, seed: number): number {
+export function noise1(x: number, seed: number): number {
   const i = Math.floor(x);
   const f = x - i;
   const a = hash(i, seed);
@@ -26,13 +26,13 @@ function noise1(x: number, seed: number): number {
   return a + (b - a) * u;
 }
 
-function rgb(hex: string): [number, number, number] {
+export function rgb(hex: string): [number, number, number] {
   const v = parseInt(hex.slice(1), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
 /** Desenho por pixels em um buffer próprio (rápido e nítido). */
-class Pix {
+export class Pix {
   data: Uint8ClampedArray;
   constructor(
     public w: number,

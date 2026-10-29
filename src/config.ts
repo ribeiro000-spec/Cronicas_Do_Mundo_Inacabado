@@ -49,4 +49,4 @@ export const ENGINE = {
 };
 
 export const SAVE_SCHEMA = 2;
-export const GAME_VERSION = '0.2.0';
+export const GAME_VERSION = '0.3.0';

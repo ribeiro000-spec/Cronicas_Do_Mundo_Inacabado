@@ -37,7 +37,7 @@ async function start(): Promise<void> {
     parent: 'game',
     backgroundColor: '#0b1220',
     pixelArt: true,
-    roundPixels: true,
+    roundPixels: false,
     antialias: false,
     disableContextMenu: true,
     scale: {

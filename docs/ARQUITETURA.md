@@ -78,9 +78,15 @@ do Phaser ignora a própria escala, por isso o Container.
 
 ## Personagens em camadas
 
-`render/characterArt.ts` desenha corpo, pernas, peitoral, luvas, rosto, cabelo, elmo e capa como camadas
-separadas e as compõe numa textura com 6 quadros (frente/costas × parado/passo A/passo B). Trocar um item
-troca só a sua camada. Armas e escudos são sprites à parte porque giram nos ataques (`render/CharacterView.ts`).
+`render/art/humanoid.ts` desenha os humanoides no estilo chibi (≈3 cabeças) em duas vistas 3/4 — de frente
+e de costas, espelhadas para cobrir as quatro diagonais — com 9 quadros cada: parado, caminhada de 6 tempos,
+golpe e magia. Pernas, tronco/peitoral, braços, cabeça, cabelo, barba, chapéu/elmo e capa são camadas;
+trocar um item troca só a sua camada. A tabela `HANDS` guarda onde fica cada mão em cada quadro: a arma e o
+escudo (sprites à parte, porque giram nos ataques) seguem a mão, e um “punho” é desenhado por cima do cabo
+(`render/CharacterView.ts`).
+
+`render/art/creatures.ts` esculpe os monstros com elipses e “cápsulas” que afinam (patas com articulação,
+pescoço, cauda), com 4 quadros de caminhada e 1 de ataque. `CREATURE_FRAMES` diz quantos quadros cada um tem.
 
 ## Combate
 

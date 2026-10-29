@@ -5,7 +5,15 @@
 export const display = {
   /** pixels do canvas por pixel CSS */
   dpr: 1,
+  /** pixels do canvas por unidade lógica do mundo (zoom da câmera) */
+  zoom: 2,
 };
+
+/** Alinha uma coordenada do mundo à grade de pixels reais da tela (sem tremer ao mover). */
+export function snapPx(v: number): number {
+  const z = display.zoom;
+  return Math.round(v * z) / z;
+}
 
 export function computeDpr(hiRes: boolean): number {
   if (!hiRes) return 1;

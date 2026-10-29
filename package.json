@@ -1,7 +1,7 @@
 {
   "name": "cronicas-do-mundo-inacabado",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "RPG de ação 2D isométrico para navegador — Crônicas do Mundo Inacabado (demo do Ato I)",
   "type": "module",
   "scripts": {

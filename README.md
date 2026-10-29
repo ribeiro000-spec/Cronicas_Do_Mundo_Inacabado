@@ -96,6 +96,9 @@ Tudo do MVP do GDD (§17), e um pouco mais:
 
 - **Mundo em chunks** de 192×192 tiles (144 arquivos de 16×16), carregados e descarregados conforme você anda,
   com pré-carga na direção do movimento.
+- **Personagens no estilo dos RPGs de ação clássicos** (≈3 cabeças de altura), em 3/4 nas quatro
+  diagonais, com caminhada de 6 quadros, poses de golpe e de magia e a arma presa na mão. Monstros
+  com silhueta de verdade (lobo, javali, aranha, slime) e patas articuladas.
 - **Personagem livre:** 4 arquétipos iniciais (Guerreiro, Maga, Arqueira, Clérigo) que só orientam o começo.
   6 atributos (FOR, DES, INT, VON, VIG, AFI) com distribuição e **prévia antes de confirmar**.
 - **19 habilidades em 8 escolas**, com até 5 níveis de maestria e 4 atalhos. Cada habilidade **evolui**

@@ -5,6 +5,7 @@ import { ARCHETYPES, HAIR_COLORS, HAIR_STYLES, SKIN_TONES } from '../data/archet
 import { ITEMS } from '../data/items';
 import { game } from '../game';
 import { fullFigureCanvas } from '../render/characterArt';
+import { TitleScene } from '../render/titleArt';
 import { SLOT_LABEL, SLOTS, type SlotId } from '../systems/save';
 import { sfx } from '../systems/sfx';
 import type { WorldData } from '../world/WorldData';
@@ -28,67 +29,56 @@ function archetypeLook(archId: string, look: PlayerLook): HumanoidLook {
   };
 }
 
-function titleBackground(world: WorldData): HTMLCanvasElement {
-  const m = world.manifest;
-  const ov = world.overview();
-  const pal = m.overviewPalette;
-  const base = document.createElement('canvas');
-  base.width = m.width;
-  base.height = m.height;
-  const bctx = base.getContext('2d')!;
-  const img = bctx.createImageData(m.width, m.height);
-  for (let i = 0; i < ov.length; i++) {
-    const hex = pal[ov[i]].replace('#', '');
-    img.data[i * 4] = parseInt(hex.slice(0, 2), 16);
-    img.data[i * 4 + 1] = parseInt(hex.slice(2, 4), 16);
-    img.data[i * 4 + 2] = parseInt(hex.slice(4, 6), 16);
-    img.data[i * 4 + 3] = 255;
-  }
-  bctx.putImageData(img, 0, 0);
-  const cv = document.createElement('canvas');
-  cv.className = 'title-bg';
-  const draw = () => {
-    const w = (cv.width = Math.round(window.innerWidth / 2));
-    const hh = (cv.height = Math.round(window.innerHeight / 2));
-    const ctx = cv.getContext('2d')!;
-    ctx.imageSmoothingEnabled = false;
-    const s = Math.max(w, hh * 2) / m.width / 0.95;
-    ctx.fillStyle = '#0b1220';
-    ctx.fillRect(0, 0, w, hh);
-    ctx.setTransform(s * 0.7071, s * 0.3536, -s * 0.7071, s * 0.3536, w / 2, hh / 2 - m.height * s * 0.3536);
-    ctx.drawImage(base, 0, 0);
+/** Os quatro heróis da tela inicial, com a aparência inicial de cada arquétipo. */
+function titleHeroes(): HTMLCanvasElement[] {
+  const looks: Record<string, PlayerLook> = {
+    guerreiro: { skin: '#e3b48c', hair: '#6b3f22', hairStyle: 'curto' },
+    maga: { skin: '#f2d1b0', hair: '#e2c26b', hairStyle: 'longo' },
+    arqueira: { skin: '#c68d63', hair: '#2a2a3a', hairStyle: 'rabo' },
+    clerigo: { skin: '#9a6440', hair: '#c9c9c9', hairStyle: 'curto' },
   };
-  draw();
-  window.addEventListener('resize', draw);
-  return cv;
+  return ['arqueira', 'guerreiro', 'maga', 'clerigo'].map((id) => fullFigureCanvas(archetypeLook(id, looks[id]), 1));
 }
 
-export function showTitle(world: WorldData, onNew: () => void, onLoad: (slot: SlotId) => void, onImport: (text: string) => void): HTMLElement {
+export function showTitle(_world: WorldData, onNew: () => void, onLoad: (slot: SlotId) => void, onImport: (text: string) => void): HTMLElement {
   const root = document.getElementById('ui')!;
   const continueBtn = h('button', { class: 'btn primary', disabled: true }, 'Continuar');
+  const art = h('canvas', { class: 'title-art' }) as HTMLCanvasElement;
+  const scene = new TitleScene(art, titleHeroes());
   const content = h(
     'div',
     { class: 'title-content' },
-    h('h1', { class: 'game-title' }, 'Crônicas do', h('br'), 'Mundo Inacabado'),
-    h('p', { class: 'game-sub' }, 'As Costuras que seguram Avarra estão falhando.'),
-    continueBtn,
-    h('button', { class: 'btn', onclick: () => (sfx.unlock(), onNew()) }, 'Novo jogo'),
-    h('button', { class: 'btn', onclick: () => (sfx.unlock(), openLoadList(onLoad)) }, 'Carregar'),
     h(
-      'button',
-      {
-        class: 'btn ghost',
-        onclick: async () => {
-          const text = await pickFile();
-          if (text) onImport(text);
-        },
-      },
-      'Importar backup (.json)',
+      'div',
+      { class: 'logo' },
+      h('div', { class: 'logo-top' }, 'Crônicas do'),
+      h('h1', { class: 'logo-main' }, 'Mundo Inacabado'),
+      h('div', { class: 'logo-rule' }, h('i'), h('span', null, '✦'), h('i')),
+      h('div', { class: 'logo-sub' }, 'Ato I · A Estrada que se Dobra'),
     ),
-    h('p', { class: 'muted title-tip', style: 'font-size:12px;text-align:center;margin:4px 0 0' }, 'Dica: no celular, deite o aparelho e use “Adicionar à tela inicial” para jogar em tela cheia.'),
+    h(
+      'div',
+      { class: 'title-menu' },
+      continueBtn,
+      h('button', { class: 'btn', onclick: () => (sfx.unlock(), onNew()) }, 'Novo jogo'),
+      h('button', { class: 'btn', onclick: () => (sfx.unlock(), openLoadList(onLoad)) }, 'Carregar'),
+      h(
+        'button',
+        {
+          class: 'btn ghost small',
+          onclick: async () => {
+            const text = await pickFile();
+            if (text) onImport(text);
+          },
+        },
+        'Importar backup (.json)',
+      ),
+    ),
+    h('p', { class: 'title-tip' }, 'Dica: no celular, deite o aparelho e use “Adicionar à tela inicial” para jogar em tela cheia.'),
   );
-  const screen = h('div', { class: 'screen title-screen' }, titleBackground(world), content, h('div', { class: 'version' }, `v${GAME_VERSION}`));
+  const screen = h('div', { class: 'screen title-screen' }, art, h('div', { class: 'title-vignette' }), content, h('div', { class: 'version' }, `v${GAME_VERSION}`));
   root.appendChild(screen);
+  scene.start();
   void game.saves.list().then((all) => {
     let best: SlotId | null = null;
     let at = 0;
